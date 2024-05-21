@@ -1,0 +1,73 @@
+from umqtt.simple import MQTTClient 
+import time
+import network 
+import machine  
+import dht 
+
+dht_pin = machine.Pin(15, machine.Pin.IN) 
+dht_sensor = dht.DHT22(dht_pin) 
+
+# Zählervariable für die Anzahl der Übertragungen 
+transmit_count = 0 
+
+while transmit_count < 10:  # Schleife wird 10 Mal durchlaufen 
+
+    try: 
+        # Trigger a sensor reading 
+        dht_sensor.measure() 
+        # Get the temperature (in Celsius) and humidity 
+        temperature = dht_sensor.temperature() 
+        humidity = dht_sensor.humidity() 
+        humidity1 = str(humidity) 
+        temperature1 = str(temperature) 
+        # Wait for some time before taking the next reading 
+        time.sleep(1)  # Pause von einer Sekunde zwischen den Messungen 
+    except OSError as e: 
+        print("Error reading DHT sensor:", e) 
+
+MQTT_CLIENT_ID = "micropython-students-demo" 
+    MQTT_BROKER = "broker.mqttdashboard.com" 
+    MQTT_USER = "" 
+    MQTT_PASSWORD = "" 
+    MQTT_TOPIC = "Wetter"  # Hauptthema 
+
+    print("Connecting to WiFi", end="") 
+    sta_if = network.WLAN(network.STA_IF) 
+    sta_if.active(True) 
+    sta_if.connect('Wokwi-GUEST', '') 
+    while not sta_if.isconnected(): 
+        print(".", end="") 
+        time.sleep(0.1) 
+    print(" Connected!") 
+    print("Connecting to MQTT server... ", end="") 
+    client = MQTTClient(MQTT_CLIENT_ID, MQTT_BROKER, user=MQTT_USER, password=MQTT_PASSWORD) 
+    if client.connect() != 0: 
+        print("Connection to MQTT server failed!") 
+        continue  # Try connecting again 
+    print("Connected!") 
+
+    MQTT_TOPIC_TEMP = "{}/Temperatur".format(MQTT_TOPIC)  # Thema für Temperatur (Unterthema von "Wetter") 
+    MQTT_TOPIC_HUM = "{}/Feuchtigkeit".format(MQTT_TOPIC)  # Thema für Feuchtigkeit (Unterthema von "Wetter") 
+
+    print("Reporting to MQTT topic {}: Temperatur {}°C".format(MQTT_TOPIC_TEMP, temperature1)) 
+    client.publish(MQTT_TOPIC_TEMP, temperature1) 
+
+    # Warte eine Sekunde bevor mit der Übertragung der Feuchtigkeit fortgefahren wird 
+    time.sleep(1) 
+
+    print("Reporting to MQTT topic {}: Feuchtigkeit {}%".format(MQTT_TOPIC_HUM, humidity1)) 
+    client.publish(MQTT_TOPIC_HUM, humidity1) 
+
+    # Erhöhe die Anzahl der Übertragungen um 1 
+    transmit_count += 1 
+
+    # Trenne die MQTT-Verbindung nicht 
+    print("Data transmitted. Waiting for next transmission...") 
+
+    # Warte 5 Sekunden, bevor mit der nächsten Übertragung fortgefahren wird 
+    time.sleep(5) 
+
+# Nach 10 Übertragungen wird die Schleife beendet 
+print("Transmission completed. Disconnecting...") 
+client.disconnect() 
+print("Disconnected") 
