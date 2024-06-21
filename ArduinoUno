@@ -1,0 +1,47 @@
+#include <SPI.h>
+#include <LoRa.h>
+#include <DHT.h>
+
+#define DHTPIN A0
+#define DHTTYPE DHT11
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial);
+
+  Serial.println("LoRa Sender");
+
+  if (!LoRa.begin(868E6)) {  // Set frequency to 868 MHz for EU region
+    Serial.println("Starting LoRa failed!");
+    while (1);
+  }
+
+  LoRa.setSpreadingFactor(7);  // Set spreading factor (SF7)
+  LoRa.setSignalBandwidth(125E3);  // Set bandwidth to 125 kHz
+  LoRa.setCodingRate4(5);  // Set coding rate to 4/5
+  LoRa.setSyncWord(0x34); // Set Sync Word 
+
+  dht.begin();
+}
+
+void loop() {
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  String data = String("Temp: ") + temperature + "C, Humidity: " + humidity + "%";
+  Serial.println(data);
+
+  LoRa.beginPacket();
+  LoRa.print(data);
+  LoRa.endPacket();
+  Serial.println("Packet sent");
+
+  delay(5000); // Send data every 60 seconds
+}
